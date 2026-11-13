@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: MIT
 """Minute-price quantile forecaster for make.fun polymarket-nvidia-ceo-forecast-01 (Python 3.13, stdlib only).
 
-For each market: x = last price, s = recent volatility (root mean square of 1-minute changes over the last
-WINDOW minutes, floored). Quantile at level tau for minute h: x + s * C[tau] * h ** P[tau], clamped to [0, 1].
-C and P are global constants fitted on a pooled, scale-normalised backtest (upward-skewed: near-zero markets
-spike up more often than they fall)."""
+For each market: x = last price, s = recent volatility (blend of the RMS 1-minute change over 120 minutes and the
+RMS 10-minute change over 240 minutes, plus terms in x and sqrt(x(1-x)) and a floor). Quantile at level tau for
+minute h: x + s * C[tau] * h ** P[tau], clamped to [0, 1]; a non-median quantile is exactly x while the chance of
+any move by minute h (from the market's recent rate of changed minutes) is too small to reach it. C and P are
+global constants fitted on a pooled, scale-normalised backtest (upward-skewed: near-zero markets spike up more
+often than they fall)."""
 import json
 import math
 import os
