@@ -19,7 +19,8 @@ PARAMS = {
     'k': 10,
     'w_short': 0.5,         # variance weight of the 1-minute estimate (rest: the k-minute one)
     'level': 0.0075,        # volatility term proportional to the price (a quiet market at 0.3 still moves)
-    'floor': 0.0002,        # volatility floor (price units per sqrt-minute)
+    'level_sqrt': 0.002,    # volatility term proportional to sqrt(x(1-x)) (quiet mid-priced markets)
+    'floor': 0.0001,        # volatility floor (price units per sqrt-minute)
     'short_sigma': 0.0025,  # volatility assumed when there are fewer than 'min_n' changes
     'min_n': 30,
     'c': [-1.3205, -0.1452, 0.0, 0.0354, 2.0484],
@@ -75,7 +76,7 @@ def volatility(p, P):
         a = n / P['min_n']
         s = a * s + (1 - a) * P['short_sigma']
     x = p[-1]
-    return math.sqrt(s * s + (P['level'] * x) ** 2 + P['floor'] ** 2)
+    return math.sqrt(s * s + (P['level'] * x) ** 2 + P['level_sqrt'] ** 2 * x * (1 - x) + P['floor'] ** 2)
 
 
 def forecast_market(prices, horizon=240, P=PARAMS):
