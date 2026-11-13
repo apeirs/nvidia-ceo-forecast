@@ -14,12 +14,16 @@ OUTPUT_DIR = os.environ.get('MAKEFUN_OUTPUT_DIR', '/output')
 LEVELS = [0.05, 0.25, 0.5, 0.75, 0.95]
 
 PARAMS = {
-    'window': 120,          # minutes of 1-minute changes for the volatility estimate
-    'floor': 0.0002,        # minimum volatility (price units per minute)
+    'window': 120,          # minutes of 1-minute changes for the short volatility estimate
+    'window_k': 240,        # minutes of k-minute changes for the second estimate (filters 1-minute spikes)
+    'k': 10,
+    'w_short': 0.5,         # variance weight of the 1-minute estimate (rest: the k-minute one)
+    'level': 0.0075,        # volatility term proportional to the price (a quiet market at 0.3 still moves)
+    'floor': 0.0002,        # volatility floor (price units per sqrt-minute)
     'short_sigma': 0.0025,  # volatility assumed when there are fewer than 'min_n' changes
     'min_n': 30,
-    'c': [-0.95, -0.23, 0.0, 0.034, 2.2],
-    'p': [0.5, 0.5, 0.5, 0.6, 0.3],
+    'c': [-1.3205, -0.1452, 0.0, 0.0354, 2.0484],
+    'p': [0.4, 0.6, 0.5, 0.6, 0.3],
 }
 
 
@@ -41,21 +45,35 @@ def clean_prices(raw):
     return out
 
 
+def rms_change(p, window, k):
+    """root mean square of k-minute changes over the last `window` minutes, per minute; None if too short"""
+    seg = p[-window - 1:]
+    n = len(seg) - k
+    if n <= 0:
+        return None
+    ss = 0.0
+    for i in range(n):
+        d = seg[i + k] - seg[i]
+        ss += d * d
+    return ss / n / k
+
+
 def volatility(p, P):
-    w = P['window']
-    seg = p[-w - 1:]
-    n = len(seg) - 1
+    n = len(p) - 1
     if n <= 0:
         return P['short_sigma']
-    ss = 0.0
-    for a, b in zip(seg, seg[1:]):
-        ss += (b - a) * (b - a)
-    s = math.sqrt(ss / n)
+    v1 = rms_change(p, P['window'], 1)
+    vk = rms_change(p, P['window_k'], P['k'])
+    if vk is None:
+        vk = v1
+    var = P['w_short'] * v1 + (1 - P['w_short']) * vk
+    s = math.sqrt(var)
     if n < P['min_n']:
         # blend toward the default when the history is short
-        k = n / P['min_n']
-        s = k * s + (1 - k) * P['short_sigma']
-    return max(s, P['floor'])
+        a = n / P['min_n']
+        s = a * s + (1 - a) * P['short_sigma']
+    x = p[-1]
+    return math.sqrt(s * s + (P['level'] * x) ** 2 + P['floor'] ** 2)
 
 
 def forecast_market(prices, horizon=240, P=PARAMS):
