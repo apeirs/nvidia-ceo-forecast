@@ -79,7 +79,8 @@ def volatility(p, P):
 def forecast_market(prices, horizon=240, P=PARAMS):
     p = clean_prices(prices)
     if not p:
-        return [[0.0, 0.0, 0.0, 0.0, 0.0] if False else [0.0, 0.005, 0.02, 0.05, 0.2] for _ in range(horizon)]
+        # no usable price at all: a wide forecast around a typical low price of this event
+        return [[0.0, 0.005, 0.02, 0.05, 0.2] for _ in range(horizon)]
     x = p[-1]
     s = volatility(p, P)
     c, pw = P['c'], P['p']
