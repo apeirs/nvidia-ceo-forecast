@@ -24,6 +24,8 @@ PARAMS = {
     'min_n': 30,
     'c': [-1.3205, -0.1452, 0.0, 0.0354, 2.0484],
     'p': [0.4, 0.6, 0.5, 0.6, 0.3],
+    'pm_window': 240,       # minutes over which the share of minutes with a price change is counted
+    'pm_side': 0.5,         # share of moves assumed to go each way
 }
 
 
@@ -84,11 +86,20 @@ def forecast_market(prices, horizon=240, P=PARAMS):
     x = p[-1]
     s = volatility(p, P)
     c, pw = P['c'], P['p']
+    # point mass at the last price: rate of minutes with a change over the last pm_window minutes (with a weak
+    # prior); a quantile sits exactly at x while P(any move by h) * pm_side is below its tail probability
+    seg = p[-P['pm_window'] - 1:]
+    changes = sum(1 for a, b in zip(seg, seg[1:]) if a != b)
+    lam = (changes + 1.0) / (len(seg) - 1 + 10.0)
     rows = []
     for h in range(1, horizon + 1):
+        moved = (1.0 - math.exp(-lam * h)) * P['pm_side']
         row = []
         for j in range(5):
-            q = x + s * c[j] * h ** pw[j]
+            if j != 2 and moved < min(LEVELS[j], 1 - LEVELS[j]):
+                q = x
+            else:
+                q = x + s * c[j] * h ** pw[j]
             row.append(min(1.0, max(0.0, q)))
         rows.append(row)
     return rows
